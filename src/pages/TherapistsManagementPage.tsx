@@ -40,6 +40,8 @@ function TherapistsManagementPage() {
   const [filterSpecialization, setFilterSpecialization] = useState<string>('all');
   const [selectedTherapist, setSelectedTherapist] = useState<Therapist | null>(null);
   const [showTherapistModal, setShowTherapistModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editFormData, setEditFormData] = useState<Partial<Therapist>>({});
   const [therapists, setTherapists] = useState<Therapist[]>([]);
 
   useEffect(() => {
@@ -111,6 +113,11 @@ function TherapistsManagementPage() {
       const pendingService = therapistServices.find((s: any) => s.therapistId === therapistUser.id && s.status === 'pending');
       const rejectedService = therapistServices.find((s: any) => s.therapistId === therapistUser.id && s.status === 'rejected');
       
+      // Only show therapists who have submitted a service listing
+      if (!service && !pendingService && !rejectedService) {
+        return; // Skip therapists who haven't listed their service yet
+      }
+      
       const therapist: Therapist = {
         id: therapistUser.id,
         name: therapistUser.name,
@@ -137,6 +144,56 @@ function TherapistsManagementPage() {
     });
     
     setTherapists(combinedTherapists);
+  };
+
+  const handleEditTherapist = () => {
+    if (!selectedTherapist || !editFormData.name || !editFormData.email) {
+      toast.error('Please fill in required fields');
+      return;
+    }
+
+    // Update registered users
+    const registeredUsers = JSON.parse(localStorage.getItem('mindcare_registered_users') || '[]');
+    const updatedUsers = registeredUsers.map((u: any) => 
+      u.id === selectedTherapist.id ? { ...u, ...editFormData } : u
+    );
+    localStorage.setItem('mindcare_registered_users', JSON.stringify(updatedUsers));
+
+    // Update therapist services
+    const therapistServices = JSON.parse(localStorage.getItem('mindcare_therapist_services') || '[]');
+    const updatedServices = therapistServices.map((s: any) => 
+      s.therapistId === selectedTherapist.id ? { 
+        ...s, 
+        therapistName: editFormData.name,
+        specialization: editFormData.specialization,
+        chargesPerSession: editFormData.hourlyRate,
+        bio: editFormData.bio
+      } : s
+    );
+    localStorage.setItem('mindcare_therapist_services', JSON.stringify(updatedServices));
+
+    // Update available therapists for booking
+    const availableTherapists = JSON.parse(localStorage.getItem('mindcare_therapists') || '[]');
+    const updatedAvailableTherapists = availableTherapists.map((t: any) => 
+      t.id === selectedTherapist.id ? { 
+        ...t, 
+        name: editFormData.name,
+        specialization: editFormData.specialization,
+        hourlyRate: editFormData.hourlyRate,
+        bio: editFormData.bio
+      } : t
+    );
+    localStorage.setItem('mindcare_therapists', JSON.stringify(updatedAvailableTherapists));
+
+    // Update local state
+    setTherapists(prev => prev.map(t => 
+      t.id === selectedTherapist.id ? { ...t, ...editFormData } : t
+    ));
+
+    setShowEditModal(false);
+    setSelectedTherapist(null);
+    setEditFormData({});
+    toast.success('Therapist information updated successfully!');
   };
 
   const getStatusColor = (status: string) => {
@@ -611,7 +668,13 @@ function TherapistsManagementPage() {
                   >
                     <Eye className="w-4 h-4" />
                   </button>
-                  <button className="p-2 text-gray-500 hover:text-green-600 transition-colors">
+                  <button 
+                    onClick={() => {
+                      setSelectedTherapist(therapist);
+                      setShowEditModal(true);
+                    }}
+                    className="p-2 text-gray-500 hover:text-green-600 transition-colors"
+                  >
                     <Edit className="w-4 h-4" />
                   </button>
                   <button
@@ -789,6 +852,155 @@ function TherapistsManagementPage() {
                       {selectedTherapist.bio}
                     </p>
                   </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+
+        {/* Edit Therapist Modal */}
+        {showEditModal && selectedTherapist && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowEditModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              className={`max-w-2xl w-full rounded-2xl shadow-2xl ${
+                theme === 'dark' ? 'bg-gray-800' : 'bg-white'
+              }`}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className={`text-2xl font-bold ${
+                    theme === 'dark' ? 'text-white' : 'text-gray-800'
+                  }`}>
+                    Edit Therapist
+                  </h2>
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className={`p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors ${
+                      theme === 'dark' ? 'text-gray-400' : 'text-gray-600'
+                    }`}
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="grid md:grid-cols-2 gap-4 mb-6">
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={editFormData.name || selectedTherapist.name}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, name: e.target.value }))}
+                      className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                        theme === 'dark'
+                          ? 'bg-gray-700 border-gray-600 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Email *
+                    </label>
+                    <input
+                      type="email"
+                      value={editFormData.email || selectedTherapist.email}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, email: e.target.value }))}
+                      className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                        theme === 'dark'
+                          ? 'bg-gray-700 border-gray-600 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Phone
+                    </label>
+                    <input
+                      type="tel"
+                      value={editFormData.phone || selectedTherapist.phone}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, phone: e.target.value }))}
+                      className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                        theme === 'dark'
+                          ? 'bg-gray-700 border-gray-600 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                  <div>
+                    <label className={`block text-sm font-medium mb-2 ${
+                      theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                    }`}>
+                      Hourly Rate ($)
+                    </label>
+                    <input
+                      type="number"
+                      value={editFormData.hourlyRate || selectedTherapist.hourlyRate}
+                      onChange={(e) => setEditFormData(prev => ({ ...prev, hourlyRate: parseInt(e.target.value) }))}
+                      className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-purple-500 ${
+                        theme === 'dark'
+                          ? 'bg-gray-700 border-gray-600 text-white'
+                          : 'bg-white border-gray-300 text-gray-900'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="mb-6">
+                  <label className={`block text-sm font-medium mb-2 ${
+                    theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
+                  }`}>
+                    Bio
+                  </label>
+                  <textarea
+                    value={editFormData.bio || selectedTherapist.bio}
+                    onChange={(e) => setEditFormData(prev => ({ ...prev, bio: e.target.value }))}
+                    rows={4}
+                    className={`w-full px-4 py-3 rounded-xl border focus:outline-none focus:ring-2 focus:ring-purple-500 resize-none ${
+                      theme === 'dark'
+                        ? 'bg-gray-700 border-gray-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-900'
+                    }`}
+                  />
+                </div>
+
+                <div className="flex space-x-3">
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={() => setShowEditModal(false)}
+                    className={`flex-1 py-3 rounded-xl font-medium ${
+                      theme === 'dark'
+                        ? 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    Cancel
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleEditTherapist}
+                    className="flex-1 py-3 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-xl font-medium hover:from-purple-600 hover:to-blue-600 transition-all duration-300"
+                  >
+                    Save Changes
+                  </motion.button>
                 </div>
               </div>
             </motion.div>

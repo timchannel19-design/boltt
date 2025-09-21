@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { 
   User, Camera, Save, Edit, CheckCircle, Clock, 
   DollarSign, Award, FileText, Star, Shield,
-  AlertTriangle, Plus, Trash2, Eye
+  AlertTriangle, Plus, Trash2, Eye, XCircle
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -137,6 +137,46 @@ function ListServicePage() {
     toast.success(existingService ? 'Service updated! Awaiting admin approval.' : 'Service submitted! Awaiting admin approval.');
   };
 
+  const handleDeleteService = () => {
+    if (!existingService) return;
+
+    if (window.confirm('Are you sure you want to delete your service listing? This action cannot be undone.')) {
+      // Remove from therapist services
+      const services = JSON.parse(localStorage.getItem('mindcare_therapist_services') || '[]');
+      const updatedServices = services.filter((s: any) => s.id !== existingService.id);
+      localStorage.setItem('mindcare_therapist_services', JSON.stringify(updatedServices));
+      
+      // Remove from available therapists for booking
+      const availableTherapists = JSON.parse(localStorage.getItem('mindcare_therapists') || '[]');
+      const updatedAvailableTherapists = availableTherapists.filter((t: any) => t.id !== user?.id);
+      localStorage.setItem('mindcare_therapists', JSON.stringify(updatedAvailableTherapists));
+      
+      // Update user status back to pending
+      const registeredUsers = JSON.parse(localStorage.getItem('mindcare_registered_users') || '[]');
+      const updatedUsers = registeredUsers.map((u: any) => 
+        u.id === user?.id ? { ...u, status: 'pending', verified: false } : u
+      );
+      localStorage.setItem('mindcare_registered_users', JSON.stringify(updatedUsers));
+      
+      setExistingService(null);
+      setServiceData({
+        therapistId: user?.id || '',
+        therapistName: user?.name || '',
+        profilePicture: '',
+        qualification: '',
+        experience: '',
+        chargesPerSession: 100,
+        specialization: [],
+        bio: '',
+        languages: ['English'],
+        availability: [],
+        status: 'pending'
+      });
+      
+      toast.success('Service listing deleted successfully.');
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'approved': return 'bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300';
@@ -176,9 +216,27 @@ function ListServicePage() {
                 className="flex items-center space-x-2 px-4 py-2 bg-gradient-to-r from-purple-500 to-blue-500 text-white rounded-lg hover:from-purple-600 hover:to-blue-600 transition-all duration-300"
               >
                 <Edit className="w-4 h-4" />
-                <span>Edit Service</span>
+            <div className="flex items-center space-x-2">
+              <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(existingService.status)}`}>
+                {existingService.status}
+              </span>
+              {existingService.status === 'approved' && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="flex items-center space-x-1 px-3 py-1 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm"
+                >
+                  <Edit className="w-3 h-3" />
+                  <span>Edit</span>
+                </button>
+              )}
+              <button
+                onClick={handleDeleteService}
+                className="flex items-center space-x-1 px-3 py-1 bg-red-100 text-red-700 rounded-lg hover:bg-red-200 transition-colors text-sm"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Delete</span>
               </button>
-            )}
+            </div>
           </div>
         </motion.div>
 
